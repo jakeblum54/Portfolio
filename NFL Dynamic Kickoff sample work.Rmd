@@ -1,0 +1,303 @@
+---
+title: "Sample Work"
+author: "Jake Blumengarten"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+  
+```{r setup, include=TRUE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+path <- file.path("/Users/jakeblumengarten/Downloads/Blitz 2025/InjuryData.csv")
+path2 <- file.path("/Users/jakeblumengarten/Downloads/Blitz 2025/KickingData.csv")
+InjuryData <- read.csv(path)
+kickingdata <- read.csv(path2)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+```
+
+## Differences in Contact Injuries from 2021-2023 vs 2024
+
+```{r, warning = FALSE}
+InjuryData %>%
+  filter(!is.na(Alignment)) %>% 
+  mutate(Period = ifelse(Season >= 2021 & Season <= 2023, "2021-2023", "2024")) %>%  
+  group_by(Period, Alignment) %>%  
+  summarise(avg_injury_count = n() / n_distinct(Season)) %>%  
+  ggplot(aes(x = Alignment, y = avg_injury_count, fill = Period)) +
+  geom_col(position = "dodge") + 
+  theme_test() +
+  labs(title = "Average Number of Injuries by Kickoff Team Position (2021-2023 vs. 2024)",
+       x = "Kickoff Team Position",
+       y = "Average Number of Injuries") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top")  
+```
+
+## Which position on the kickoff team gets injured the most?
+
+```{r, warning = FALSE}
+InjuryData %>%
+  filter(!is.na(Injury_Type)) %>%  
+  mutate(Period = ifelse(Season >= 2021 & Season <= 2023, "2021-2023", "2024")) %>% 
+  group_by(Period, Injury_Type) %>% 
+  summarise(injury_count = n()) %>%  
+  ggplot(aes(x = Injury_Type, y = injury_count, fill = Period)) +
+  geom_col(position = "dodge") + 
+  theme_test() +
+  labs(title = "Number of Injuries by Type (2021-2023 vs. 2024)",
+       x = "Injury Type",
+       y = "Number of Injuries") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top")
+```
+
+## Differences in Contact Injuries from 2021-2023 vs 2024
+```{r, warning = FALSE}
+InjuryData %>%
+  filter(!is.na(Injury_Region), !is.na(GamesMissed)) %>% 
+  mutate(GamesMissed = as.numeric(GamesMissed)) %>%  
+  mutate(Period = ifelse(Season >= 2021 & Season <= 2023, "2021-2023", "2024")) %>% 
+  group_by(Period, Injury_Region) %>% 
+  summarise(avg_GamesMissed = mean(GamesMissed, na.rm = TRUE), .groups = "drop") %>%  
+  ggplot(aes(x = Injury_Region, y = avg_GamesMissed, fill = Period)) +
+  geom_col(position = "dodge") + 
+  theme_test() +
+  labs(title = "Average Games Missed by Injury Region (2021-2023 vs. 2024)",
+       x = "Injury Region",
+       y = "Average Games Missed") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top") 
+```
+
+## Difference in Contact Injuries from 2021-2023. Vs 2024
+```{r, warning = FALSE}
+InjuryData %>%
+  filter(!is.na(Injury_Type) & !is.na(Injury_InitialSeverity) & !is.na(GamesMissed)) %>%
+  mutate(
+    Period = ifelse(Season >= 2021 & Season <= 2023, "2021-2023", "2024"),
+    GamesMissed = as.numeric(GamesMissed),  # Ensure GamesMissed is numeric
+    Injury_InitialSeverity = case_when(
+      grepl("mild|minor", Injury_InitialSeverity, ignore.case = TRUE) ~ "Mildly Severe",
+      grepl("severe", Injury_InitialSeverity, ignore.case = TRUE) ~ "Severe",
+      grepl("not severe", Injury_InitialSeverity, ignore.case = TRUE) ~ "Not Severe",
+      grepl("extreme|extremely", Injury_InitialSeverity, ignore.case = TRUE) ~ "Extremely Severe",
+      TRUE ~ "Other"  # Catch all for unexpected cases
+    )
+  ) %>%
+  group_by(Period, Injury_InitialSeverity, Injury_Type) %>%
+  summarise(avg_GamesMissed = mean(GamesMissed, na.rm = TRUE), .groups = 'drop') %>%
+  ggplot(aes(x = Injury_Type, y = avg_GamesMissed, fill = Injury_InitialSeverity)) +
+  geom_col(position = "dodge") +  # Dodge bars to separate injury severity levels
+  facet_wrap(~ Period) +  # Facet by period (2021-2023 vs 2024)
+  theme_test() +
+  labs(title = "Average Games Missed by Injury Severity and Type of Injury",
+       x = "Injury Type",
+       y = "Average Games Missed") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top")  # Rotate labels for readability
+```
+
+## Is there a significant difference in Mean Contact Injuries from 2021-2023. Vs 2024
+```{r, warning = FALSE}
+
+str(InjuryData$GamesMissed)
+summary(InjuryData$GamesMissed)
+
+
+InjuryData$GamesMissed <- suppressWarnings(as.numeric(as.character(InjuryData$GamesMissed)))
+
+
+InjuryData_clean <- InjuryData %>%
+  drop_na(GamesMissed)
+
+
+summary(InjuryData_clean$GamesMissed)
+
+
+games_missed_2021_2023 <- InjuryData_clean %>%
+  filter(Season %in% c(2021, 2022, 2023)) %>%
+  pull(GamesMissed)
+
+games_missed_2024 <- InjuryData_clean %>%
+  filter(Season == 2024) %>%
+  pull(GamesMissed)
+
+t_test_result <- t.test(
+  games_missed_2021_2023,
+  games_missed_2024,
+  alternative = "two.sided"
+)
+
+print(t_test_result)
+```
+Since the p-value is less than 0.05, we can reject the null hypothesis that the mean number of contact injuries from 2021-2023 and 2024 are equal, and therefore the number of contact injuries in 2024 is significantly different from the mean number of contact injuries in the years 2021-2023. 
+
+## Distribution of Return Yards Pre Dynamic Kickoff vs. Post Dynamic Kickoff
+
+```{r, warning = FALSE}
+# 2021-2023 data
+kickingdata_2021_2023 <- kickingdata %>%
+  filter((Season == 2021 | Season == 2022 | Season == 2023) & ReturnYards > 0 & Quarter <= 4)
+
+# Calculate the mean for 2021-2023
+mean_2021_2023 <- mean(kickingdata_2021_2023$ReturnYards, na.rm = TRUE)
+
+# Plot for 2021-2023 with mean vertical line
+ggplot(kickingdata_2021_2023, aes(x = ReturnYards)) +
+  geom_histogram(bins = 30, alpha = 0.5, position = "identity", fill = "steelblue") +  
+  geom_vline(xintercept = mean_2021_2023, color = "red", linetype = "dashed", size = 1) +
+  labs(x = "Return Yards", 
+       y = "Count of Kicks", 
+       title = "Distribution of Return Yards (2021-2023)") +
+  theme_test()
+
+
+# 2024 data
+kickingdata_2024 <- kickingdata %>%
+  filter(Season == 2024 & ReturnYards > 0 & Quarter <= 4) %>%
+  mutate(landing_zone = between(KickYards, 45, 65), 
+         pointdiff = KickingTeamScore - ReturningTeamScore)
+
+# Calculate the mean for 2024
+mean_2024 <- mean(kickingdata_2024$ReturnYards, na.rm = TRUE)
+
+# Plot for 2024 with mean vertical line
+ggplot(kickingdata_2024, aes(x = ReturnYards, fill = factor(landing_zone))) +
+  geom_histogram(bins = 30, alpha = 0.5, position = "identity") +  
+  geom_vline(xintercept = mean_2024, color = "red", linetype = "dashed", size = 1) +
+  labs(x = "Return Yards", 
+       y = "Count of Kicks", 
+       fill = "Landing Zone (45<x<65 yards)",
+       title = "Distribution of Return Yards by Landing Zone (2024)") +
+  theme_test() +
+  theme(legend.position = "top")
+
+```
+
+## Distribution of Return Yards Pre Dynamic Kickoff vs. Post Dynamic Kickoff and Z-test
+
+```{r, warning = FALSE}
+
+kickingdata2_2021_2023 <- kickingdata %>%
+  filter((Season == 2021 | Season == 2022 | Season == 2023) & ReturnYards > 0 & Quarter <= 4) %>%
+  mutate(Period = "2021-2023")
+
+
+kickingdata2_2024 <- kickingdata %>%
+  filter(Season == 2024 & ReturnYards > 0 & Quarter <= 4) %>%
+  mutate(landing_zone = between(KickYards, 45, 65), 
+         pointdiff = KickingTeamScore - ReturningTeamScore,
+         Period = "2024")
+
+
+combined_kickingdata <- bind_rows(kickingdata2_2021_2023, kickingdata2_2024)
+
+
+ggplot(combined_kickingdata, aes(x = ReturnYards, fill = Period)) +
+  geom_histogram(bins = 30, alpha = 0.5, position = "identity") +
+  facet_wrap(~ Quarter, labeller = label_both) + 
+  labs(x = "Return Yards", 
+       y = "Count of Kicks", 
+       title = "Distribution of Return Yards by Year and Quarter") +
+  theme_test() +
+  theme(legend.position = "top")
+
+
+mean_2024 <- mean(kickingdata_2024$ReturnYards, na.rm = TRUE)
+mean_2021_2023 <- mean(kickingdata_2021_2023$ReturnYards, na.rm = TRUE)
+
+sd_2024 <- sd(kickingdata_2024$ReturnYards, na.rm = TRUE)
+sd_2021_2023 <- sd(kickingdata_2021_2023$ReturnYards, na.rm = TRUE)
+
+
+n_2024 <- length(kickingdata_2024$ReturnYards)
+n_2021_2023 <- length(kickingdata_2021_2023$ReturnYards)
+
+
+z_score <- (mean_2024 - mean_2021_2023) / sqrt((sd_2024^2 / n_2024) + (sd_2021_2023^2 / n_2021_2023))
+
+
+p_value <- 2 * (1 - pnorm(abs(z_score)))
+
+
+results_table <- data.frame(
+  "Statistic" = c("Mean (2024)", "Mean (2021-2023)", "Standard Deviation (2024)", "Standard Deviation (2021-2023)", 
+                  "Z-score", "P-value"),
+  "Value" = c(mean_2024, mean_2021_2023, sd_2024, sd_2021_2023, z_score, p_value)
+)
+
+print(results_table)
+
+```
+
+Since the p-value is 0, we can reject the null hypothesis that the two sample means are equal, and therefore the distribution of return yards is significantly different from the distribution of return yards in the years 2021-2023. 
+
+
+## Does kicking it to the landing zone get your opponent better field position?
+
+```{r, warning = FALSE}
+kickingdata_2024 <- kickingdata %>%
+  filter(Season == 2024 & ReturnYards > 0 & Quarter <= 4) %>%
+  mutate(landing_zone = between(KickYards, 45,65), 
+         pointdiff = KickingTeamScore - ReturningTeamScore)
+
+kickingdata_2024 %>%
+  ggplot(aes(x = KickoffResultDistToEZ)) +
+    geom_histogram(binwidth = 2, aes(fill = landing_zone), color = "black", alpha = 0.6) +  
+    scale_fill_manual(values = c("skyblue", "orange")) + 
+    facet_wrap(~ landing_zone, labeller = labeller(landing_zone = c('TRUE' = 'Made Zone', 'FALSE' = 'Missed Zone')), ncol = 1) +
+    labs(title = "Distribution of Kickoff Result Distance to End Zone by Landing Zone",
+         x = "Distance to End Zone (yards)",
+         y = "Frequency") +
+    scale_x_continuous(breaks = seq(0, max(kickingdata_2024$KickoffResultDistToEZ), by = 10)) +
+    geom_vline(data = kickingdata_2024 %>%
+                 group_by(landing_zone) %>%
+                 summarise(mean_value = mean(KickoffResultDistToEZ, na.rm = TRUE)),
+               aes(xintercept = mean_value, color = landing_zone), 
+               linetype = "dashed", size = 1) + 
+    geom_text(data = kickingdata_2024 %>%
+                group_by(landing_zone) %>%
+                summarise(mean_value = mean(KickoffResultDistToEZ, na.rm = TRUE)),
+              aes(x = mean_value + 5, 
+                  y = 10, 
+                  label = paste("Mean = ", round(mean_value, 1))),
+              color = "red", size = 4, angle = 0, hjust = 0) +  
+    theme_minimal() +
+    theme(legend.position = "top", strip.text = element_text(size = 12), plot.title = element_text(hjust = 0.5))
+
+# Calculate the mean value for 2024 data
+mean_2024 <- mean(kickingdata2_2024$KickoffResultDistToEZ, na.rm = TRUE)
+
+# Calculate the mean value for 2021-2023 data
+mean_2021_2023 <- mean(kickingdata2_2021_2023$KickoffResultDistToEZ, na.rm = TRUE)
+
+# t-test between the two means
+t_test_result2 <- t.test(kickingdata2_2024$KickoffResultDistToEZ, kickingdata2_2021_2023$KickoffResultDistToEZ, alternative = "two.sided")
+
+# View the result of the t-test
+t_test_result2
+
+
+```
+
+Similarly to the return yards variable, we can reject the null hypothesis that the two sample means are equal, and therefore the distribution of distance to endzone after the kickoff in 2024 is significantly different from the distribution of distance to endzone after the kickoff in the years 2021-2023. 
+From this conclusion, kicking into the landing zone gives the kicking team an advantage.
+
+```{r}
+# Calculate average return yards by team and by season
+avg_return_yards <- kickingdata %>%
+  group_by(ReturnTeam, Season) %>%
+  summarise(avgReturnYards = mean(ReturnYards, na.rm = TRUE)) %>%
+  ungroup()
+
+# Plot the results using ggplot2
+library(ggplot2)
+ggplot(avg_return_yards, aes(x = reorder(ReturnTeam, -avgReturnYards), y = avgReturnYards)) +
+  geom_col(width = 0.8, fill = "orange") +  # Slightly wider bars
+  labs(x = "Team", 
+       y = "Average Return Yards", 
+       fill = "Season",
+       title = "Average Return Yards by Team and Season") +
+  theme_test() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +  # Vertical x-axis labels
+  facet_wrap(~ Season, scales = "free_x")
+```
